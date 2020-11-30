@@ -11,7 +11,7 @@ A port of the original differ for Haxe (https://github.com/underscorediscovery/d
 - **COLLISION ONLY.** No physics
 - Project is a .net core library
 
-##Quick look
+## Quick look
 
 **A simple collision example**
 
