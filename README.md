@@ -14,7 +14,6 @@ A port of the original differ for Haxe (https://github.com/underscorediscovery/d
 ##Quick look
 
 **A simple collision example**
-This is taken from the original, but this syntax is 100% compatible.
 
     var circle = new Circle( 300, 200, 50 );
     var box = Polygon.Rectangle( 0, 0, 50, 150 );
