@@ -1,31 +1,21 @@
-﻿using System;
-using Differ.Math;
+﻿using Microsoft.Xna.Framework;
 
 namespace Differ.Shapes
 {
 	public class Ray
 	{
-		public Vector start;
-		public Vector end;
+		public Vector2 Start;
+		public Vector2 End;
 
-		private Vector _dir;
-		public Vector dir { 
-			get {
-				_dir.x = end.x - start.x;
-       	 		_dir.y = end.y - start.y;
-       	 		return _dir;
-			}
-		}
+		public Vector2 Direction => new Vector2(End.X - Start.X, End.Y - Start.Y);
 
-		public bool infinite;
+		public readonly bool IsInfinite;
 
-		public Ray (Vector start, Vector end, bool infinite = true)
+		public Ray (Vector2 start, Vector2 end, bool isInfinite = true)
 		{
-			this.start = start;
-			this.end = end;
-			this.infinite = infinite;
-
-			_dir = new Vector(end.x - start.x, end.y - start.y);
+			Start = start;
+			End = end;
+			IsInfinite = isInfinite;
 		}
 	}
 }

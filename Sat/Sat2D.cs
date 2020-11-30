@@ -1,453 +1,416 @@
 ﻿using System.Collections.Generic;
 using Differ.Data;
-using Differ.Math;
 using Differ.Shapes;
+using Microsoft.Xna.Framework;
+using Ray = Differ.Shapes.Ray;
 
 namespace Differ.Sat
 {
-    public class Sat2D
-	{
-		/** Internal api - test a circle against a polygon */
-	    public static ShapeCollision testCircleVsPolygon(Circle circle, Polygon polygon, bool flip = false) {
+    public static class Sat2D
+    {
+        /** Internal api - test a circle against a polygon */
+        public static bool TestCircleVsPolygon(Circle circle, Polygon polygon, out ShapeCollision shapeCollision, bool flip = false)
+        {
+            shapeCollision = new ShapeCollision();
+            var verts = polygon.TransformedVertices;
 
-	        var result = new ShapeCollision();
-			var verts = polygon.transformedVertices;
+            float testDistance = float.MaxValue;
+            Vector2 closest = Vector2.Zero;
 
-	        var circleX = circle.x;
-	        var circleY = circle.y;
+            for (int i = 0; i < verts.Count; i++)
+            {
+                float distance = (circle.Position - verts[i]).LengthSquared();
 
-	        float testDistance = float.MaxValue;
-	        var distance = 0.0f;
-	        var closestX = 0.0f;
-	        var closestY = 0.0f;
+                if (distance < testDistance)
+                {
+                    testDistance = distance;
+                    closest = verts[i];
+                }
+            }
 
-	        for (var i = 0; i < verts.Count; i++) {
-	            distance = Util.vec_lengthsq(circleX - verts[i].x, circleY - verts[i].y);
-
-	            if (distance < testDistance) {
-	                testDistance = distance;
-	                closestX = verts[i].x;
-	                closestY = verts[i].y;
-	            }
-	        }
-
-			var normalAxisX = closestX - circleX;
-	        var normalAxisY = closestY - circleY;
-	        var normAxisLen = Util.vec_length(normalAxisX, normalAxisY);
-            normalAxisX = Util.vec_normalize(normAxisLen, normalAxisX);
-            normalAxisY = Util.vec_normalize(normAxisLen, normalAxisY);
+            Vector2 normalAxis = closest - circle.Position;
+            normalAxis.Normalize();
 
             //project all its points, 0 outside the loop
-	        var test = 0.0f;
-	        var min1 = Util.vec_dot(normalAxisX, normalAxisY, verts[0].x, verts[0].y);
-	        var max1 = min1;
+            float test = 0.0f;
+            float min1 = Vector2.Dot(normalAxis, verts[0]);
+            float max1 = min1;
 
-	        for (var j = 1; j < verts.Count; j++) {
-	            test = Util.vec_dot(normalAxisX, normalAxisY, verts[j].x, verts[j].y);
-	            if (test < min1) min1 = test;
-	            if (test > max1) max1 = test;
-	        }
+            for (int j = 1; j < verts.Count; j++)
+            {
+                test = Vector2.Dot(normalAxis, verts[j]);
+                if (test < min1) min1 = test;
+                if (test > max1) max1 = test;
+            }
 
-	        // project the circle
-	        var max2 = circle.transformedRadius;
-	        var min2 = -circle.transformedRadius;
-	        var offset = Util.vec_dot(normalAxisX, normalAxisY, -circleX, -circleY);
-	            
-	        min1 += offset;
-	        max1 += offset;
+            // project the circle
+            float max2 = circle.TransformedRadius;
+            float min2 = -circle.TransformedRadius;
+            float offset = Vector2.Dot(normalAxis, -circle.Position);
 
-	        var test1 = min1 - max2;
-	        var test2 = min2 - max1;
+            min1 += offset;
+            max1 += offset;
 
-	        //if either test is greater than 0, there is a gap, we can give up now.
-	        if (test1 > 0 || test2 > 0) return null;
+            float test1 = min1 - max2;
+            float test2 = min2 - max1;
 
-	        // circle distance check
-	        var distMin = -(max2 - min1);
-	        if (flip) distMin *= -1;
+            //if either test is greater than 0, there is a gap, we can give up now.
+            if (test1 > 0 || test2 > 0) 
+                return false;
 
-	        result.overlap = distMin;
-	        result.unitVectorX = normalAxisX;
-	        result.unitVectorY = normalAxisY;
-	        var closest = System.Math.Abs(distMin);
+            // circle distance check
+            float distMin = -(max2 - min1);
+            if (flip) distMin *= -1;
+
+            shapeCollision.Overlap = distMin;
+            shapeCollision.Normal = normalAxis;
+            float closestDist = System.Math.Abs(distMin);
 
             // find the normal axis for each point and project
-            for (var i = 0; i < verts.Count; i++) {
+            for (int i = 0; i < verts.Count; i++)
+            {
+                normalAxis = FindNormalAxis(verts, i);
+                normalAxis.Normalize();
 
-	            normalAxisX = findNormalAxisX(verts, i);
-	            normalAxisY = findNormalAxisY(verts, i);
-	            var aLen = Util.vec_length(normalAxisX, normalAxisY);
-	            normalAxisX = Util.vec_normalize(aLen, normalAxisX);
-	            normalAxisY = Util.vec_normalize(aLen, normalAxisY);
+                // project the polygon(again? yes, circles vs. polygon require more testing...)
+                min1 = Vector2.Dot(normalAxis, verts[0]);
+                max1 = min1; //set max and min
 
-	            // project the polygon(again? yes, circles vs. polygon require more testing...)
-	            min1 = Util.vec_dot(normalAxisX, normalAxisY, verts[0].x, verts[0].y);
-	            max1 = min1; //set max and min
+                //project all the other points(see, cirlces v. polygons use lots of this...)
+                for (int j = 1; j < verts.Count; j++)
+                {
+                    test = Vector2.Dot(normalAxis, verts[j]);
+                    if (test < min1) min1 = test;
+                    if (test > max1) max1 = test;
+                }
 
-	            //project all the other points(see, cirlces v. polygons use lots of this...)
-				for (var j = 1; j < verts.Count; j++) {
-	                test = Util.vec_dot(normalAxisX, normalAxisY, verts[j].x, verts[j].y);
-	                if (test < min1) min1 = test;
-	                if (test > max1) max1 = test;
-	            }
+                // project the circle(again)
+                max2 = circle.TransformedRadius; //max is radius
+                min2 = -circle.TransformedRadius; //min is negative radius
 
-	            // project the circle(again)
-	            max2 = circle.transformedRadius; //max is radius
-	            min2 = -circle.transformedRadius; //min is negative radius
+                //offset points
+                offset = Vector2.Dot(normalAxis, -circle.Position);
+                min1 += offset;
+                max1 += offset;
 
-	            //offset points
-	            offset = Util.vec_dot(normalAxisX, normalAxisY, -circleX, -circleY);
-	            min1 += offset;
-	            max1 += offset;
+                // do the test, again
+                test1 = min1 - max2;
+                test2 = min2 - max1;
 
-	            // do the test, again
-	            test1 = min1 - max2;
-	            test2 = min2 - max1;
+                //failed.. quit now
+                if (test1 > 0 || test2 > 0)
+                {
+                    return false;
+                }
 
-	                //failed.. quit now
-	            if (test1 > 0 || test2 > 0) {
-	                return null;
-	            }
+                distMin = -(max2 - min1);
+                if (flip) distMin *= -1;
 
-	            distMin = -(max2 - min1);
-	            if (flip) distMin *= -1;
+                if (System.Math.Abs(distMin) < closestDist)
+                {
+                    shapeCollision.Normal = normalAxis;
+                    shapeCollision.Overlap = distMin;
+                    closestDist = System.Math.Abs(distMin);
+                }
+            } //for
 
-	            if (System.Math.Abs(distMin) < closest) {
-	                result.unitVectorX = normalAxisX;
-	                result.unitVectorY = normalAxisY;
-	                result.overlap = distMin;
-	                closest = System.Math.Abs(distMin);
-	            }
+            //if you made it here, there is a collision!!!!!
 
-	        } //for
+            if (flip)
+            {
+                shapeCollision.Shape1 = polygon;
+                shapeCollision.Shape2 = circle;
+            }
+            else
+            {
+                shapeCollision.Shape1 = circle;
+                shapeCollision.Shape2 = polygon;
+            }
 
-	        //if you made it here, there is a collision!!!!!
+            shapeCollision.Separation *= shapeCollision.Overlap;
 
-	        if (flip) {
-	        	result.shape1 = polygon;
-	        	result.shape2 = circle;
-	        } else {
-				result.shape1 = circle;
-				result.shape2 = polygon;
-	        }
+            if (!flip)
+            {
+                shapeCollision.Normal = -shapeCollision.Normal;
+            }
 
-	        result.separationX = result.unitVectorX * result.overlap;
-	        result.separationY = result.unitVectorY * result.overlap;
+            return true;
+        }
 
-	        if (!flip) {
-	            result.unitVectorX = -result.unitVectorX;
-	            result.unitVectorY = -result.unitVectorY;
-	        }
+        /** Internal api - test a circle against a circle */
+        public static bool TestCircleVsCircle(Circle circleA, Circle circleB, out ShapeCollision shapeCollision, bool flip = false)
+        {
+            shapeCollision = new ShapeCollision();
+            Circle circle1 = flip ? circleB : circleA;
+            Circle circle2 = flip ? circleA : circleB;
 
-	        return result;
-		}
+            //add both radii together to get the colliding distance
+            float totalRadius = circle1.TransformedRadius + circle2.TransformedRadius;
+            //find the distance between the two circles using Pythagorean theorem. No square roots for optimization
+            float distancesq = (circle1.Position - circle2.Position).LengthSquared();
 
-		/** Internal api - test a circle against a circle */
-	    public static ShapeCollision testCircleVsCircle( Circle circleA, Circle circleB, bool flip = false ) {
+            //if your distance is less than the totalRadius square(because distance is squared)
+            if (distancesq < totalRadius * totalRadius)
+            {
+                //find the difference. Square roots are needed here.
+                float difference = (float) (totalRadius - System.Math.Sqrt(distancesq));
 
-			var result = new ShapeCollision();
-	        var circle1 = flip ? circleB : circleA;
-	        var circle2 = flip ? circleA : circleB;
+                shapeCollision.Shape1 = circle1;
+                shapeCollision.Shape2 = circle2;
 
-	        //add both radii together to get the colliding distance
-	        var totalRadius = circle1.transformedRadius + circle2.transformedRadius;
-	        //find the distance between the two circles using Pythagorean theorem. No square roots for optimization
-	        var distancesq = Util.vec_lengthsq(circle1.x - circle2.x, circle1.y - circle2.y);
+                Vector2 normal = circle1.Position - circle2.Position;
+                normal.Normalize();
 
-	        //if your distance is less than the totalRadius square(because distance is squared)
-	        if (distancesq < totalRadius * totalRadius) {
-	       
-	            //find the difference. Square roots are needed here.
-	            float difference = (float) (totalRadius - System.Math.Sqrt(distancesq));
-
-                result.shape1 = circle1;
-                result.shape2 = circle2;
-
-                var unitVecX = circle1.x - circle2.x;
-                var unitVecY = circle1.y - circle2.y;
-                var unitVecLen = Util.vec_length(unitVecX, unitVecY);
-
-                unitVecX = Util.vec_normalize(unitVecLen, unitVecX);
-                unitVecY = Util.vec_normalize(unitVecLen, unitVecY);
-
-                result.unitVectorX = unitVecX;
-                result.unitVectorY = unitVecY;
+                shapeCollision.Normal = normal;
 
                 //find the movement needed to separate the circles
-                result.separationX = result.unitVectorX * difference;
-                result.separationY = result.unitVectorY * difference;
+                shapeCollision.Separation *= difference;
 
                 //the magnitude of the overlap
-                result.overlap = Util.vec_length(result.separationX, result.separationY);
+                shapeCollision.Overlap = shapeCollision.Separation.Length();
 
-	            return result;
+                return true;
+            } //if distancesq < r^2
 
-	        } //if distancesq < r^2
+            return false;
+        }
 
-	        return null;
+        public static bool TestPolygonVsPolygon(Polygon polygon1, Polygon polygon2, out ShapeCollision shapeCollision, bool flip = false)
+        {
+            if (!CheckPolygons(polygon1, polygon2, out ShapeCollision tmp1, flip)
+                || !CheckPolygons(polygon2, polygon1, out ShapeCollision tmp2, flip))
+            {
+                shapeCollision = new ShapeCollision();
+                return false;
+            }
 
-	    }
+            ShapeCollision result;
+            ShapeCollision other;
 
-		/** Internal api - test a polygon against another polygon */
-	    static ShapeCollision tmp1 = new ShapeCollision();
-		static ShapeCollision tmp2 = new ShapeCollision();
+            if (System.Math.Abs(tmp1.Overlap) < System.Math.Abs(tmp2.Overlap))
+            {
+                result = tmp1;
+                other = tmp2;
+            }
+            else
+            {
+                result = tmp2;
+                other = tmp1;
+            }
 
-	    public static ShapeCollision testPolygonVsPolygon(Polygon polygon1, Polygon polygon2, bool flip = false ) {
-
-	        var output = new ShapeCollision();
-	        
-	        if ( (tmp1 = checkPolygons(polygon1, polygon2, flip)) == null) {
-	            return null;
-	        }
-
-	        if ( (tmp2 = checkPolygons(polygon2, polygon1, !flip)) == null) {
-	            return null;
-	        }
-
-	        ShapeCollision result = null;
-			ShapeCollision other = null;
-
-	        if (System.Math.Abs(tmp1.overlap) < System.Math.Abs(tmp2.overlap)) {
-	            result = tmp1;
-	            other = tmp2;
-	        } else {
-	            result = tmp2;
-	            other = tmp1;
-	        }
-
-	        result.otherOverlap = other.overlap;
-	        result.otherSeparationX = other.separationX;
-	        result.otherSeparationY = other.separationY;
-	        result.otherUnitVectorX = other.unitVectorX;
-	        result.otherUnitVectorY = other.unitVectorY;
-
-			output.copy_from(result);
-	        result = other = null;
-
-	        return result;
-
-	    } //testPolygonVsPolygon
+            result.OtherOverlap = other.Overlap;
+            result.Separation = other.Separation;
+            result.Normal = other.Normal;
+            shapeCollision = result;
+            return true;
+        } //testPolygonVsPolygon
 
         /** Internal api - test a ray against a circle */
-	    public static RayCollision testRayVsCircle( Ray ray, Circle circle) {
+        public static bool TestRayVsCircle(Ray ray, Circle circle, out RayCollision rayCollision)
+        {
+            Vector2 delta = ray.End - ray.Start;
+            Vector2 ray2Circle = ray.Start - circle.Position;
 
-	        var deltaX = ray.end.x - ray.start.x;
-	        var deltaY = ray.end.y - ray.start.y;
-	        var ray2circleX = ray.start.x - circle.position.x;
-	        var ray2circleY = ray.start.y - circle.position.y;
+            float a = delta.LengthSquared();
+            float b = 2 * Vector2.Dot(delta, ray2Circle);
+            float c = Vector2.Dot(ray2Circle, ray2Circle) - (circle.Radius * circle.Radius);
+            float d = b * b - 4 * a * c;
 
-	        var a = Util.vec_lengthsq(deltaX, deltaY);
-	        var b = 2 * Util.vec_dot(deltaX, deltaY, ray2circleX, ray2circleY);
-	        var c = Util.vec_dot(ray2circleX, ray2circleY, ray2circleX, ray2circleY) - (circle.radius * circle.radius);
-	        var d = b * b - 4 * a * c;
+            if (d >= 0)
+            {
+                d = (float) System.Math.Sqrt(d);
 
-	        if (d >= 0) {
+                float t1 = (-b - d) / (2 * a);
+                float t2 = (-b + d) / (2 * a);
 
-	            d = (float)System.Math.Sqrt(d);
+                if (ray.IsInfinite || (t1 <= 1.0 && t1 >= 0.0))
+                {
+                    rayCollision = new RayCollision
+                    {
+                        Shape = circle, 
+                        Ray = ray, 
+                        Start = t1, 
+                        End = t2
+                    };
+                    return true;
+                } //
+            } //d >= 0
 
-	            var t1 = (-b - d) / (2 * a);
-	            var t2 = (-b + d) / (2 * a);
-
-	            if (ray.infinite || (t1 <= 1.0 && t1 >= 0.0)) {
-	                
-	                var result = new RayCollision();
-	                    
-                    result.shape = circle;
-                    result.ray = ray;
-                    result.start = t1;
-                    result.end = t2;
-
-	                return result;
-
-	            } //
-
-	        } //d >= 0
-
-	        return null;
-
-	    }
+            rayCollision = new RayCollision();
+            return false;
+        }
 
         /** Internal api - test a ray against a polygon */
-	    public static RayCollision testRayVsPolygon(Ray ray, Polygon polygon) {
+        public static bool TestRayVsPolygon(Ray ray, Polygon polygon, out RayCollision rayCollision)
+        {
+            float minU = float.PositiveInfinity;
+            float maxU = 0.0f;
 
-	        var min_u = float.PositiveInfinity;
-	        var max_u = 0.0f;
+            float startX = ray.Start.X;
+            float startY = ray.Start.Y;
+            float deltaX = ray.End.X - startX;
+            float deltaY = ray.End.Y - startY;
 
-	        var startX = ray.start.x;
-	        var startY = ray.start.y;
-	        var deltaX = ray.end.x - startX;
-	        var deltaY = ray.end.y - startY;
+            var verts = polygon.TransformedVertices;
+            Vector2 v1 = verts[^1];
+            Vector2 v2 = verts[0];
 
-	        var verts = polygon.transformedVertices;
-	        var v1 = verts[verts.Count - 1];
-	        var v2 = verts[0];
+            float ud = (v2.Y - v1.Y) * deltaX - (v2.X - v1.X) * deltaY;
+            float ua = RayU(ud, startX, startY, v1.X, v1.Y, v2.X - v1.X, v2.Y - v1.Y);
+            float ub = RayU(ud, startX, startY, v1.X, v1.Y, deltaX, deltaY);
 
-	        var ud = (v2.y-v1.y) * deltaX - (v2.x-v1.x) * deltaY;
-	        var ua = rayU(ud, startX, startY, v1.x, v1.y, v2.x - v1.x, v2.y - v1.y);
-	        var ub = rayU(ud, startX, startY, v1.x, v1.y, deltaX, deltaY);
+            if (ud != 0.0 && ub >= 0.0 && ub <= 1.0)
+            {
+                if (ua < minU) minU = ua;
+                if (ua > maxU) maxU = ua;
+            }
 
-	        if (ud != 0.0 && ub >= 0.0 && ub <= 1.0) {
-	            if (ua < min_u) min_u = ua;
-	            if (ua > max_u) max_u = ua;
-	        }
+            for (int i = 1; i < verts.Count; i++)
+            {
+                v1 = verts[i - 1];
+                v2 = verts[i];
 
-	        for (var i = 1; i < verts.Count; i++) {
+                ud = (v2.Y - v1.Y) * deltaX - (v2.X - v1.X) * deltaY;
+                ua = RayU(ud, startX, startY, v1.X, v1.Y, v2.X - v1.X, v2.Y - v1.Y);
+                ub = RayU(ud, startX, startY, v1.X, v1.Y, deltaX, deltaY);
 
-	            v1 = verts[i - 1];
-	            v2 = verts[i];
+                if (ud != 0.0 && ub >= 0.0 && ub <= 1.0)
+                {
+                    if (ua < minU) minU = ua;
+                    if (ua > maxU) maxU = ua;
+                }
+            } //each vert
 
-	            ud = (v2.y-v1.y) * deltaX - (v2.x-v1.x) * deltaY;
-	            ua = rayU(ud, startX, startY, v1.x, v1.y, v2.x - v1.x, v2.y - v1.y);
-	            ub = rayU(ud, startX, startY, v1.x, v1.y, deltaX, deltaY);
+            if (ray.IsInfinite || (minU <= 1.0 && minU >= 0.0))
+            {
+                rayCollision = new RayCollision
+                {
+                    Shape = polygon, 
+                    Ray = ray, 
+                    Start = minU, 
+                    End = maxU
+                };
+                return true;
+            }
 
-	            if (ud != 0.0 && ub >= 0.0 && ub <= 1.0) {
-	                if (ua < min_u) min_u = ua;
-	                if (ua > max_u) max_u = ua;
-	            }
-
-	        } //each vert
-
-	        if (ray.infinite || (min_u <= 1.0 && min_u >= 0.0) ) {
-	            var result = new RayCollision();
-                result.shape = polygon;
-                result.ray = ray;
-                result.start = min_u; 
-                result.end = max_u;
-	            return result;
-	        }
-
-	        return null;
-
-	    }
+            rayCollision = new RayCollision();
+            return false;
+        }
 
         /** Internal api - test a ray against another ray */
-	    public static RayIntersection testRayVsRay(Ray ray1, Ray ray2) {
+        public static bool TestRayVsRay(Ray ray1, Ray ray2, out RayIntersection rayIntersection)
+        {
+            float delta1X = ray1.End.X - ray1.Start.X;
+            float delta1Y = ray1.End.Y - ray1.Start.Y;
+            float delta2X = ray2.End.X - ray2.Start.X;
+            float delta2Y = ray2.End.Y - ray2.Start.Y;
+            float diffX = ray1.Start.X - ray2.Start.X;
+            float diffY = ray1.Start.Y - ray2.Start.Y;
+            float ud = delta2Y * delta1X - delta2X * delta1Y;
 
-	        var delta1X = ray1.end.x - ray1.start.x;
-	        var delta1Y = ray1.end.y - ray1.start.y;
-	        var delta2X = ray2.end.x - ray2.start.x;
-	        var delta2Y = ray2.end.y - ray2.start.y;
-	        var diffX = ray1.start.x - ray2.start.x;
-	        var diffY = ray1.start.y - ray2.start.y;
-	        var ud = delta2Y * delta1X - delta2X * delta1Y;
+            if (ud == 0.0)
+            {
+                rayIntersection = new RayIntersection();
+                return false;
+            }
 
-	        if(ud == 0.0) return null;
+            float u1 = (delta2X * diffY - delta2Y * diffX) / ud;
+            float u2 = (delta1X * diffY - delta1Y * diffX) / ud;
 
-	        var u1 = (delta2X * diffY - delta2Y * diffX) / ud;
-	        var u2 = (delta1X * diffY - delta1Y * diffX) / ud;
+            if ((ray1.IsInfinite || u1 > 0.0 && u1 <= 1.0) && (ray2.IsInfinite || u2 > 0.0 && u2 <= 1.0))
+            {
+                rayIntersection = new RayIntersection
+                {
+                    Ray1 = ray1, 
+                    Ray2 = ray2, 
+                    U1 = u1, 
+                    U2 = u2
+                };
+                return true;
+            }
 
-	        if ((ray1.infinite || (u1 > 0.0 && u1 <= 1.0)) && (ray2.infinite || (u2 > 0.0 && u2 <= 1.0))) {
-	            var result = new RayIntersection();
-                result.ray1 = ray1;
-                result.ray2 = ray2;
-                result.u1 = u1;
-                result.u2 = u2;
-
-	            return result;
-	        }
-
-	        return null;
-
-	    }
+            rayIntersection = new RayIntersection();
+            return false;
+        }
 
         /** Internal api - implementation details for testPolygonVsPolygon */
-	    public static ShapeCollision checkPolygons(Polygon polygon1, Polygon polygon2, bool flip = false ) {
+        public static bool CheckPolygons(Polygon polygon1, Polygon polygon2, out ShapeCollision shapeCollision, bool flip = false)
+        {
+            shapeCollision = new ShapeCollision();
 
-	        var result = new ShapeCollision();
+            float closest = float.MaxValue;
 
-	        // TODO: This is unused, check original source
-	        var offset = 0.0f;
-	        var test1 = 0.0f;
-	        var test2 = 0.0f;
-	        var testNum = 0.0f;
-	        var min1 = 0.0f;
-	        var max1 = 0.0f;
-	        var min2 = 0.0f;
-	        var max2 = 0.0f;
-	        var closest = float.MaxValue;
-
-	        var axisX = 0.0f;
-	        var axisY = 0.0f;
-	        var verts1 = polygon1.transformedVertices;
-	        var verts2 = polygon2.transformedVertices;
+            var verts1 = polygon1.TransformedVertices;
+            var verts2 = polygon2.TransformedVertices;
 
             // loop to begin projection
-            for (var i = 0; i < verts1.Count; i++) {
-
-	            axisX = findNormalAxisX(verts1, i);
-	            axisY = findNormalAxisY(verts1, i);
-	            var aLen = Util.vec_length(axisX, axisY);
-	            axisX = Util.vec_normalize(aLen, axisX);
-	            axisY = Util.vec_normalize(aLen, axisY);
+            for (int i = 0; i < verts1.Count; i++)
+            {
+                Vector2 axis = FindNormalAxis(verts1, i);
+                axis.Normalize();
 
                 // project polygon1
-	            min1 = Util.vec_dot(axisX, axisY, verts1[0].x, verts1[0].y);
-	            max1 = min1;
+                float min1 = Vector2.Dot(axis, verts1[0]);
+                float max1 = min1;
 
-				for (var j = 1; i < verts1.Count; i++) {
-	                testNum = Util.vec_dot(axisX, axisY, verts1[j].x, verts1[j].y);
-	                if (testNum < min1) min1 = testNum;
-	                if (testNum > max1) max1 = testNum;
-	            }
+                float testNum = 0.0f;
+                for (int j = 1; i < verts1.Count; i++)
+                {
+                    testNum = Vector2.Dot(axis, verts1[j]);
+                    if (testNum < min1) min1 = testNum;
+                    if (testNum > max1) max1 = testNum;
+                }
 
-	                // project polygon2
-	            min2 = Util.vec_dot(axisX, axisY, verts2[0].x, verts2[0].y);
-	            max2 = min2;
+                // project polygon2
+                float min2 = Vector2.Dot(axis, verts2[0]);
+                float max2 = min2;
 
-				for (var j = 1; i < verts2.Count; i++) {
-	                testNum = Util.vec_dot(axisX, axisY, verts2[j].x, verts2[j].y);
-	                if (testNum < min2) min2 = testNum;
-	                if (testNum > max2) max2 = testNum;
-	            }
+                for (int j = 1; i < verts2.Count; i++)
+                {
+                    testNum = Vector2.Dot(axis, verts2[j]);
+                    if (testNum < min2) min2 = testNum;
+                    if (testNum > max2) max2 = testNum;
+                }
 
-	            test1 = min1 - max2;
-	            test2 = min2 - max1;
+                float test1 = min1 - max2;
+                float test2 = min2 - max1;
 
-	            if(test1 > 0 || test2 > 0) return null;
+                if (test1 > 0 || test2 > 0) 
+                    return false;
 
-	            var distMin = -(max2 - min1);
-	            if (flip) distMin *= -1;
+                float distMin = -(max2 - min1);
+                if (flip) distMin *= -1;
 
-	            if (System.Math.Abs(distMin) < closest) {
-	                result.unitVectorX = axisX;
-	                result.unitVectorY = axisY;
-	                result.overlap = distMin;
-	                closest = System.Math.Abs(distMin);
-	            }
+                if (System.Math.Abs(distMin) < closest)
+                {
+                    shapeCollision.Normal = axis;
+                    shapeCollision.Overlap = distMin;
+                    closest = System.Math.Abs(distMin);
+                }
+            }
 
-	        }
+            shapeCollision.Shape1 = flip ? polygon2 : polygon1;
+            shapeCollision.Shape2 = flip ? polygon1 : polygon2;
+            shapeCollision.Separation = -shapeCollision.Normal * shapeCollision.Overlap;
 
-	        result.shape1 = flip ? polygon2 : polygon1;
-	        result.shape2 = flip ? polygon1 : polygon2;
-	        result.separationX = -result.unitVectorX * result.overlap;
-	        result.separationY = -result.unitVectorY * result.overlap;
+            if (flip)
+            {
+                shapeCollision.Normal = -shapeCollision.Normal;
+            }
 
-	        if (flip) {
-	            result.unitVectorX = -result.unitVectorX;
-	            result.unitVectorY = -result.unitVectorY;
-	        }
+            return true;
+        }
 
-	        return result;
+        /** Internal helper for ray overlaps */
+        public static float RayU(float udelta, float aX, float aY, float bX, float bY, float dX, float dY)
+        {
+            return (dX * (aY - bY) - dY * (aX - bX)) / udelta;
+        }
 
-	    }
-
-		/** Internal helper for ray overlaps */
-		public static float rayU(float udelta, float aX, float aY, float bX, float bY, float dX, float dY) {
-	        return (dX * (aY - bY) - dY * (aX - bX)) / udelta;
-	    } 
-
-	    public static float findNormalAxisX(IList<Vector> verts, int index) {
-	        var v2 = (index >= verts.Count - 1) ? verts[0] : verts[index + 1];
-	        return -(v2.y - verts[index].y);
-	    }
-
-	    public static float findNormalAxisY(IList<Vector> verts, int index) {
-	        var v2 = (index >= verts.Count - 1) ? verts[0] : verts[index + 1];
-	        return (v2.x - verts[index].x);
-	    }
-	}
+        public static Vector2 FindNormalAxis(IList<Vector2> verts, int index)
+        {
+            Vector2 v2 = (index >= verts.Count - 1) ? verts[0] : verts[index + 1];
+            return -(v2 - verts[index]);
+        }
+    }
 }
-
-
-        
-

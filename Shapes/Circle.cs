@@ -1,38 +1,33 @@
 ﻿using System;
 using Differ.Data;
 using Differ.Sat;
+using Microsoft.Xna.Framework;
 
 namespace Differ.Shapes
 {
 	public class Circle : Shape
 	{
-		private float _radius;
-		public float radius { get { return _radius; } set { _radius = value; name = "circle " + radius; } }
-		public float transformedRadius { get { return radius * scaleX; } }
+		public float Radius { get; private set; }
+		public float TransformedRadius => Radius * ScaleX;
 
 		public Circle (float x, float y, float radius) : base(x, y)
 		{
-			this.radius = radius;
+			Radius = radius;
 		}
 
-		public override ShapeCollision test (Shape shape)
-		{
-			return shape.testCircle(this, true);
-		}
+		public override bool CollidesWith (Shape shape, out ShapeCollision shapeCollision) 
+			=> shape.CollidesWithCircle(this, out shapeCollision, true);
 
-		public override ShapeCollision testCircle (Circle circle, bool flip = false)
-		{
-			return Sat2D.testCircleVsCircle(this, circle, flip);
-		}
+		public override bool CollidesWithCircle (Circle circle, out ShapeCollision shapeCollision, bool flip = false) 
+			=> Sat2D.TestCircleVsCircle(this, circle, out shapeCollision, flip);
 
-		public override ShapeCollision testPolygon (Polygon polygon, bool flip = false)
-		{
-			return Sat2D.testCircleVsPolygon( this, polygon, flip );
-		}
+		public override bool CollidesWithPolygon (Polygon polygon, out ShapeCollision shapeCollision, bool flip = false) 
+			=> Sat2D.TestCircleVsPolygon( this, polygon, out shapeCollision, flip );
 
-		public override RayCollision testRay (Ray ray)
-		{
-			return Sat2D.testRayVsCircle(ray, this);
-		}
+		public override bool IntersectsRay (Ray ray, out RayCollision rayCollision) 
+			=> Sat2D.TestRayVsCircle(ray, this, out rayCollision);
+
+		public override bool OverlapsPoint(Vector2 point) 
+			=> Vector2.Distance(point, Position) <= Radius;
 	}
 }

@@ -1,144 +1,126 @@
-﻿using System;
-using System.Collections.Generic;
-using Differ.Math;
+﻿using System.Collections.Generic;
 using Differ.Data;
+using Microsoft.Xna.Framework;
 
 namespace Differ.Shapes
 {
-	public class Shape
-	{
-		/** The state of this shape, if inactive can be ignored in results */
-		public bool active = true;
-        /** The name of this shape, to help in debugging */
-	    public string name = "shape";
+    public abstract class Shape
+    {
+        /** The state of this shape, if inactive can be ignored in results */
+        public bool Active = true;
+
         /** A generic data object where you can store anything you want, for later use */
-	    public object data;
-        /** A list of tags to use for marking shapes with data for later use, by key/value */
-	    public IDictionary<String, String> tags {get; private set;}
+        public object Data;
 
         /** The position of this shape */
-	    public Vector position {
-	    	get {
-	    		return _position;
-	    	}
-	    	set {
-				_position = value;
-		        refresh_transform();
-	    	}
-	    }
+        public Vector2 Position
+        {
+            get => position;
+            set
+            {
+                position = value;
+                RefreshTransform();
+            }
+        }
+
         /** The x position of this shape */
-	    public float x {
-		    get {
-		    	return _position.x;
-		    }
-		    set {
-		    	_position.x = value;
-		    	refresh_transform();
-		    }
-	    }
+        public float X
+        {
+            get => position.X;
+            set
+            {
+                position.X = value;
+                RefreshTransform();
+            }
+        }
 
         /** The y position of this shape */
-		public float y {
-		    get {
-		    	return _position.y;
-		    }
-		    set {
-		    	_position.y = value;
-		    	refresh_transform();
-		    }
-	    }
+        public float Y
+        {
+            get => position.Y;
+            set
+            {
+                position.Y = value;
+                RefreshTransform();
+            }
+        }
 
         /** The rotation of this shape, in degrees */
-	    public float rotation {
-	    	get {
-	    		return _rotation;
-	    	}
-	    	set {
-		        refresh_transform();
-		        _rotation = value;
-	    	}
-	    }
+        public float Rotation
+        {
+            get => rotation;
+            set
+            {
+                RefreshTransform();
+                rotation = value;
+            }
+        }
 
         /** The scale in the x direction of this shape */
-		public float scaleX {
-			get {
-				return _scaleX;
-			}
+        public float ScaleX
+        {
+            get => scaleX;
 
-			set {
-				_scaleX = value;
-		        refresh_transform();
-			}
-		}
+            set
+            {
+                scaleX = value;
+                RefreshTransform();
+            }
+        }
+
         /** The scale in the y direction of this shape */
-		public float scaleY {
-			get {
-				return _scaleY;
-			}
+        public float ScaleY
+        {
+            get => scaleY;
 
-			set {
-				_scaleY = value;
-		        refresh_transform();
-			}
-		}
+            set
+            {
+                scaleY = value;
+                RefreshTransform();
+            }
+        }
 
-		private Vector _position;
-		private float _rotation = 0;
+        private Vector2 position;
+        private float rotation = 0;
 
-		private float _scaleX = 1;
-		private float _scaleY = 1;
+        private float scaleX;
+        private float scaleY;
 
-		protected bool _transformed = false;
-		protected Matrix _transformMatrix;
+        protected bool transformed = false;
+        protected Matrix transformMatrix;
 
+        public Shape(float x, float y)
+        {
+            position = new Vector2(x, y);
+            rotation = 0;
 
-		public Shape (float x, float y)
-		{
-			tags = new Dictionary<string, string>();
+            scaleX = 1;
+            scaleY = 1;
 
-	        _position = new Vector(x, y);
-	        _rotation = 0;
+            transformMatrix = new Matrix();
+            Matrix.CreateTranslation(x, y, 0);
+        }
 
-	        _scaleX = 1;
-	        _scaleY = 1;
-
-			_transformMatrix = new Matrix();
-			_transformMatrix.makeTranslation(x, y);
-		}
-
-		/** Test this shape against another shape. */
-		public virtual ShapeCollision test(Shape shape) {
-			return null;
-		}
+        /** Test this shape against another shape. */
+        public abstract bool CollidesWith(Shape shape, out ShapeCollision shapeCollision);
 
         /** Test this shape against a circle. */
-	    public virtual ShapeCollision testCircle( Circle circle, bool flip = false ) {
-			return null;
-	    }
+        public abstract bool CollidesWithCircle(Circle circle, out ShapeCollision shapeCollision, bool flip = false);
 
         /** Test this shape against a polygon. */
-	    public virtual ShapeCollision testPolygon( Polygon polygon, bool flip = false ) {
-			return null;
-	    }
+        public abstract bool CollidesWithPolygon(Polygon polygon, out ShapeCollision shapeCollision, bool flip = false);
 
         /** Test this shape against a ray. */
-	    public virtual RayCollision testRay( Ray ray ) {
-			return null;
-	    }
+        public abstract bool IntersectsRay(Ray ray, out RayCollision rayCollision);
 
-	    private void refresh_transform() {
+        public abstract bool OverlapsPoint(Vector2 point);
 
-	    	_transformMatrix.compose(position, rotation, new Vector(scaleX, scaleY));
-	        _transformed = false;
-
-	    }
-
-	        /** clean up and destroy this shape */
-	    public void destroy() {
-
-	        _position = null;
-	        _transformMatrix = null;
-
-	    }
-	}
+        private void RefreshTransform()
+        {
+            transformMatrix = Matrix.CreateTranslation(position.X, position.Y, 0)
+                              * Matrix.CreateRotationZ(rotation)
+                              * Matrix.CreateScale(scaleX, scaleY, 1f);
+            transformed = false;
+        }
+    }
 }

@@ -1,132 +1,141 @@
 ﻿using System;
 using System.Collections.Generic;
 using Differ.Data;
-using Differ.Math;
 using Differ.Sat;
+using Microsoft.Xna.Framework;
 
 namespace Differ.Shapes
 {
-	public class Polygon : Shape
-	{
-		/** The vertices of this shape */
-		private IList<Vector> _vertices {
-			get {
-				return _vertices;
-			}
+    public class Polygon : Shape
+    {
+        public List<Vector2> Vertices { get; set; }
 
-			set {
-				_vertices = value;
-				name = "polygon(sides:" + _vertices.Count + ")";
-			}
-		}
-		public IList<Vector> vertices { get; set; }
+        /** The transformed (rotated/scale) vertices cache */
+        public List<Vector2> TransformedVertices
+        {
+            get
+            {
+                if (transformed) 
+                    return transformedVertices;
+                
+                transformedVertices = new List<Vector2>();
+                transformed = true;
+                
+                for (int i = 0; i < Vertices.Count; i++)
+                {
+                    transformedVertices.Add(Vector2.Transform(Vertices[i], transformMatrix));
+                }
 
-		/** The transformed (rotated/scale) vertices cache */
-		public IList<Vector> transformedVertices {
-			get {
-
-				if (!_transformed) {
-		            _transformedVertices = new List<Vector>();
-		            _transformed = true;
-
-		            var _count = vertices.Count;
-
-		            for (var i = 0; i < _count; i++) {
-						_transformedVertices.Add( vertices[i].clone().transform( _transformMatrix ) );
-		            }
-		        }
-
-		        return _transformedVertices;
-			}
-		}
+                return transformedVertices;
+            }
+        }
         
+        private List<Vector2> transformedVertices;
 
-		private IList<Vector> _transformedVertices;
-
-		public Polygon (float x, float y, IList<Vector> vertices) : base(x, y)
-		{
-			_transformedVertices = new List<Vector>();
-			this.vertices = vertices;
-		}
-
-		public override ShapeCollision test (Shape shape)
-		{
-			return shape.testPolygon(this, true);
-		}
-
-		public override ShapeCollision testCircle (Circle circle, bool flip = false)
-		{
-			return Sat2D.testCircleVsPolygon(circle, this, !flip);
-		}
-
-		public override ShapeCollision testPolygon (Polygon polygon, bool flip = false)
-		{
-			return Sat2D.testPolygonVsPolygon(this, polygon, flip);
-		}
-
-		public override RayCollision testRay (Ray ray)
-		{
-			return Sat2D.testRayVsPolygon(ray, this);
-		}
-
-		/** Helper to create an Ngon at x,y with given number of sides, and radius.
-            A default radius of 100 if unspecified. Returns a ready made `Polygon` collision `Shape` */
-		public static Polygon create(float x, float y, int sides, float radius) {
-			if (sides < 3) {
-				throw new ArgumentException("A polygon must have a least 3 sides.");
-			}
-
-			float rotation = (float)(System.Math.PI * 2) / sides;
-			float angle;
-			Vector vector;
-			IList<Vector> vertices = new List<Vector>();
-
-			for (var i = 0; i < sides; i++) {
-				angle = (float)((i * rotation) + ((System.Math.PI - rotation) * 0.5));
-	            vector = new Vector();
-				vector.x = (float)System.Math.Cos(angle) * radius;
-				vector.y = (float)System.Math.Sin(angle) * radius;
-	            vertices.Add(vector);
-			}
-
-			return new Polygon(x, y, vertices);
-		}
-
-		/** Helper generate a rectangle at x,y with a given width/height and centered state.
-            Centered by default. Returns a ready made `Polygon` collision `Shape` */
-        public static Polygon rectangle(float x, float y, float width, float height, bool centered = true) {
-
-        	var vertices = new List<Vector>();
-
-	        if (centered) {
-
-	            vertices.Add( new Vector( -width / 2, -height / 2) );
-				vertices.Add( new Vector(  width / 2, -height / 2) );
-				vertices.Add( new Vector(  width / 2,  height / 2) );
-				vertices.Add( new Vector( -width / 2,  height / 2) );
-
-	        } else {
-
-				vertices.Add( new Vector( 0, 0 ) );
-				vertices.Add( new Vector( width, 0 ) );
-				vertices.Add( new Vector( width, height) );
-				vertices.Add( new Vector( 0, height) );
-
-	        }
-
-	        return new Polygon(x,y,vertices);
+        public Polygon(float x, float y, List<Vector2> vertices) : base(x, y)
+        {
+            transformedVertices = new List<Vector2>();
+            Vertices = vertices;
         }
 
-		/** Helper generate a square at x,y with a given width/height with given centered state.
-            Centered by default. Returns a ready made `Polygon` collision `Shape` */
-	    public static Polygon square(float x, float y, float width, bool centered = true) {
-	        return rectangle(x, y, width, width, centered);
-	    }
+        public override bool CollidesWith(Shape shape, out ShapeCollision shapeCollision) 
+            => shape.CollidesWithPolygon(this, out shapeCollision, true);
 
-		/** Helper generate a triangle at x,y with a given radius.
+        public override bool CollidesWithCircle(Circle circle, out ShapeCollision shapeCollision, bool flip = false) 
+            => Sat2D.TestCircleVsPolygon(circle, this, out shapeCollision, !flip);
+
+        public override bool CollidesWithPolygon(Polygon polygon, out ShapeCollision shapeCollision, bool flip = false) 
+            => Sat2D.TestPolygonVsPolygon(this, polygon, out shapeCollision, flip);
+
+        public override bool IntersectsRay(Ray ray, out RayCollision rayCollision) 
+            => Sat2D.TestRayVsPolygon(ray, this, out rayCollision);
+
+        public override bool OverlapsPoint(Vector2 point)
+        {
+            int sides = TransformedVertices.Count;
+            var verts = TransformedVertices;
+
+            int j = sides - 1;
+            bool oddNodes = false;
+            
+            for (int i = 0; i < sides; i++)
+            {
+                if ((verts[i].Y < point.Y && verts[j].Y >= point.Y)
+                    || (verts[j].Y < point.Y && verts[i].Y >= point.Y))
+                {
+                    if (verts[i].X +
+                        (point.Y - verts[i].Y) /
+                        (verts[j].Y - verts[i].Y) *
+                        (verts[j].X - verts[i].X) < point.X)
+                    {
+                        oddNodes = !oddNodes;
+                    }
+                }
+
+                j = i;
+            }
+
+            return oddNodes;
+        }
+
+        /** Helper to create an Ngon at x,y with given number of sides, and radius.
+            A default radius of 100 if unspecified. Returns a ready made `Polygon` collision `Shape` */
+        public static Polygon Create(float x, float y, int sides, float radius)
+        {
+            if (sides < 3)
+            {
+                throw new ArgumentException("A polygon must have a least 3 sides.");
+            }
+
+            float rotation = (float) (Math.PI * 2) / sides;
+            var vertices = new List<Vector2>();
+
+            for (int i = 0; i < sides; i++)
+            {
+                float angle = (float) (i * rotation + (Math.PI - rotation) * 0.5);
+                var vector = new Vector2
+                {
+                    X = (float) Math.Cos(angle) * radius, 
+                    Y = (float) Math.Sin(angle) * radius
+                };
+                vertices.Add(vector);
+            }
+
+            return new Polygon(x, y, vertices);
+        }
+
+        /** Helper generate a rectangle at x,y with a given width/height and centered state.
+            Centered by default. Returns a ready made `Polygon` collision `Shape` */
+        public static Polygon Rectangle(float x, float y, float width, float height, bool centered = true)
+        {
+            var vertices = new List<Vector2>();
+
+            if (centered)
+            {
+                vertices.Add(new Vector2(-width / 2, -height / 2));
+                vertices.Add(new Vector2(width / 2, -height / 2));
+                vertices.Add(new Vector2(width / 2, height / 2));
+                vertices.Add(new Vector2(-width / 2, height / 2));
+            }
+            else
+            {
+                vertices.Add(new Vector2(0, 0));
+                vertices.Add(new Vector2(width, 0));
+                vertices.Add(new Vector2(width, height));
+                vertices.Add(new Vector2(0, height));
+            }
+
+            return new Polygon(x, y, vertices);
+        }
+
+        /** Helper generate a square at x,y with a given width/height with given centered state.
+            Centered by default. Returns a ready made `Polygon` collision `Shape` */
+        public static Polygon Square(float x, float y, float width, bool centered = true) 
+            => Rectangle(x, y, width, width, centered);
+
+        /** Helper generate a triangle at x,y with a given radius.
             Returns a ready made `Polygon` collision `Shape` */
-	    public static Polygon triangle(float x, float y, float radius) {
-	        return create(x, y, 3, radius);
-	    }
-	}
+        public static Polygon Triangle(float x, float y, float radius) 
+            => Create(x, y, 3, radius);
+    }
 }

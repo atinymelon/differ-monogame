@@ -1,16 +1,15 @@
 ## What is differ-cs?
 
-A port of the original differ for Haxe (https://github.com/underscorediscovery/differ). The port is (where possible) a one-to-one mapping, with a few changes to the API (no more out parameters). This is a [Separating Axis Theorom](http://en.wikipedia.org/wiki/Hyperplane_separation_theorem) collision library for C# games, intended for use in Unity.
+A port of the original differ for Haxe (https://github.com/underscorediscovery/differ). The port is (where possible) a one-to-one mapping, with a few changes to the API (no more out parameters). This is a [Separating Axis Theorom](http://en.wikipedia.org/wiki/Hyperplane_separation_theorem) collision library for C# games, intended for use in MonoGame.
 
 ----
 
-## Facts
+## Details
 
-- Supports polygons, circles, and rays currently.
-- 2D only (for now).
-- Includes a simple drawing interface for debugging shapes (Not in my port, in the original)
-- **COLLISION ONLY.** No physics here. By design :)
-- Contributions welcome
+- Supports polygons, circles, and rays currently
+- 2D only
+- **COLLISION ONLY.** No physics
+- Project is a .net core library
 
 ##Quick look
 
@@ -18,23 +17,14 @@ A port of the original differ for Haxe (https://github.com/underscorediscovery/d
 This is taken from the original, but this syntax is 100% compatible.
 
     var circle = new Circle( 300, 200, 50 );
-    var box = Polygon.rectangle( 0, 0, 50, 150 );
+    var box = Polygon.Rectangle( 0, 0, 50, 150 );
 
-    box.rotation = 45;
+    box.Rotation = 45;
 
-    var collideInfo = Collision.shapeWithShape( circle, box );
-
-    if(collideInfo != null) {
-        //use collideInfo.separationX
-        //    collideInfo.separationY
-        //    collideInfo.normalAxisX
-        //    collideInfo.normalAxisY
-        //    collideInfo.overlap
+    if (circle.CollidesWith(box, out var collideInfo)) 
+    {
+        // collideInfo.Separation
+        // collideInfo.Normal
+        // collideInfo.Overlap
     }
 
-### Roadmap
-
-- Unit tests, the original had none
-- Clean up code style
-- Implement ShapeDrawer for Unity
-- Create demos
